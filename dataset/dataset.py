@@ -15,16 +15,18 @@ logger = get_dataset_logger()
 class MultimodalDataset(Dataset):
     """Dataset class for multimodal retrieval"""
 
-    def __init__(self, dataframe, processor, transform=None):
+    def __init__(self, dataframe, processor, transform=None, use_category=False):
         """
         Args:
             dataframe: DataFrame containing image and description
             processor: CLIP processor for tokenization and image preprocessing
             transform: Optional transforms to apply to images
+            use_category: Whether to return category information (for hard negative training)
         """
         self.dataframe = dataframe.reset_index(drop=True)
         self.processor = processor
         self.transform = transform
+        self.use_category = use_category
 
         # Verify all image paths exist
         missing_paths = []
@@ -64,7 +66,7 @@ class MultimodalDataset(Dataset):
         # Clean caption text
         clean_caption = row['description'].strip().lower()
 
-        return {
+        result = {
             'pixel_values': inputs['pixel_values'][0],
             'input_ids': inputs['input_ids'][0],
             'attention_mask': inputs['attention_mask'][0],
@@ -73,6 +75,12 @@ class MultimodalDataset(Dataset):
             'display_name': row.get('display name', ''),
             'category': row.get('category', '')
         }
+
+        # Include category information if requested
+        if self.use_category:
+            result['category'] = row.get('category', 'unknown')
+
+        return result
 
 
 def load_data(data_path: str = None):
@@ -234,12 +242,13 @@ def create_dataloader(dataset, shuffle=True, drop_last=False):
     return dataloader
 
 
-def get_data_loaders(processor: CLIPProcessor = None):
+def get_data_loaders(processor: CLIPProcessor = None, use_category=False):
     """
     Create and return data loaders for train, val, and test sets
 
     Args:
         processor: CLIP processor (will be created if None)
+        use_category: Whether to return category information (for hard negative training)
 
     Returns:
         Dictionary containing train, val, test data loaders
@@ -257,7 +266,7 @@ def get_data_loaders(processor: CLIPProcessor = None):
     dataloaders = {}
 
     for split_name, split_df in splits.items():
-        dataset = MultimodalDataset(split_df, processor)
+        dataset = MultimodalDataset(split_df, processor, use_category=use_category)
         datasets[split_name] = dataset
 
         shuffle = (split_name == 'train')  # Only shuffle training data

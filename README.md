@@ -13,6 +13,7 @@ This project implements a production-ready multimodal retrieval system that supp
 5. **Interactive CLI**: Command-line interface for real-time searching
 6. **LoRA Fine-tuning**: Low-rank adaptation for domain-specific model improvement
 7. **Knowledge Distillation**: Compress large teacher models to smaller, efficient student models
+8. **Hard Negative Training**: Enhanced training with hard negative mining for improved discrimination
 
 ## Architecture
 
@@ -27,9 +28,14 @@ project/
 │   └── preprocessing.py
 ├── models/                   # CLIP model wrapper (with LoRA support)
 │   └── clip_model.py
-├── training/                 # Training scripts (includes LoRA fine-tuning)
+├── training/                 # Training scripts
 │   ├── lora_finetune.py      # LoRA fine-tuning script
-│   └── trainer.py            # LoRA trainer
+│   ├── train_hard_negative.py # Hard negative training script
+│   ├── trainer.py            # Original LoRA trainer
+│   ├── hard_negative_trainer.py # Hard negative trainer
+│   ├── contrastive_loss.py   # Original contrastive loss
+│   ├── hard_negative_loss.py # Hard negative loss functions
+│   └── model_utils.py
 ├── compression/              # Knowledge distillation module
 │   ├── distill_loss.py       # Distillation loss functions
 │   ├── distill_trainer.py    # Distillation trainer class
@@ -68,7 +74,7 @@ Key configurations are managed in `config.py`:
 
 - `DataConfig`: Paths to data files and split ratios
 - `ModelConfig`: Model name, batch size, and device settings
-- `TrainingConfig`: Training parameters (including LoRA settings)
+- `TrainingConfig`: Training parameters 
 - `LoRAConfig`: LoRA-specific settings (use_lora, lora_path, etc.)
 - `DistillationConfig`: Knowledge distillation settings (teacher_model, student_model, distill_types, lambda weights, etc.)
 - `EmbeddingConfig`: Cache directories and file paths
@@ -159,7 +165,44 @@ python training/lora_finetune.py \
 ```
 
 
-### 6. Knowledge Distillation
+### 6. Hard Negative Training
+
+Enhance your model with hard negative mining to improve fine-grained discrimination:
+
+```bash
+# Basic hard negative training
+python training/train_hard_negative.py
+
+# Custom hard negative training parameters
+python training/train_hard_negative.py \
+    --epochs 10 \
+    --lr 5e-5 \
+    --batch_size 16 \
+    --lambda_hard 0.5 \
+    --hard_negative_type batch \
+    --save_path ./my_hard_negative_lora_adapter
+
+# Use category-level hard negatives for fine-grained learning
+python training/train_hard_negative.py \
+    --epochs 10 \
+    --lr 5e-5 \
+    --lambda_hard 0.3 \
+    --hard_negative_type category \
+    --save_path ./my_category_hard_negative_adapter
+
+# Load existing checkpoint and continue training with hard negatives
+python training/train_hard_negative.py \
+    --load_checkpoint ./outputs/lora_adapter_l14_r16/checkpoint_epoch_30 \
+    --epochs 20 \
+    --lambda_hard 0.2 \
+    --save_path ./continued_hard_negative_training
+```
+
+The hard negative training offers two approaches:
+- **Batch-level hard negatives**: Mines the most challenging negative samples within each training batch
+- **Category-level hard negatives**: Uses same-category samples as hard negatives to improve fine-grained discrimination
+
+### 7. Knowledge Distillation
 
 Compress large teacher models to efficient student models with multiple distillation strategies:
 
@@ -208,6 +251,15 @@ python compression/run_distill.py \
 The `--distill_types` argument accepts one or more of: `embedding`, `similarity`, `logits`. The system automatically handles dimension mismatches between teacher and student models.
 
 ## Details
+
+### Hard Negative Training Details
+
+Hard negative training enhances the model's ability to distinguish between similar but non-matching samples. Two strategies are implemented:
+
+- **Batch-level Hard Negatives**: Identifies the most difficult negative samples within each training batch by selecting the highest similarity scores among incorrect pairs
+- **Category-level Hard Negatives**: Uses samples from the same category as hard negatives, forcing the model to learn fine-grained distinctions between similar items
+- **Composite Loss Function**: Combines traditional CLIP contrastive loss with hard negative loss: `Total Loss = CLIP Loss + λ × Hard Negative Loss`
+- **Flexible Configuration**: Adjustable `lambda_hard` parameter controls the influence of hard negative loss, and `hard_negative_type` selects between batch or category strategies
 
 ### Knowledge Distillation Details
 

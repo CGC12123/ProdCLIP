@@ -43,6 +43,12 @@ class TrainingConfig:
     save_path: str = "./outputs/lora_adapter_l14_r16"
     save_every_n_epochs: int = 10  # Save checkpoint every n epochs
 
+    # Hard negative training parameters
+    lambda_hard: float = 1
+    hard_negative_type: str = "category"  # "batch" or "category"
+    # lora_path: str = None # None for no use
+    lora_path: str = 'outputs/lora_adapter_l14_r16/checkpoint_epoch_60' # None for no use
+
     def __post_init__(self):
         if self.target_modules is None:
             self.target_modules = ["q_proj", "k_proj", "v_proj", "out_proj"]
